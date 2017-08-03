@@ -1,0 +1,224 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'artifacts3 repo - https://cfn-stacks.com'
+Parameters:
+  DomainName:
+    Description: Repo DNS name
+    Type: String
+  AcmCertificateArn:
+    Description: ACM Certificate ARN
+    Type: String
+  HostedZoneId:
+    Description: The Id of the Route 53 hosted zone
+    Type: String
+  OriginAccessIdentity:
+    Description: Create an Origin Access Identity in the CloudFront console and copy the ID. Looks like E1PG2M8DTIRADI
+    Type: String
+  OriginAccessUser:
+    Description: The Amazon S3 Canonical User ID (really long string)
+    Type: String
+  SnapshotRetentionInDays:
+    Description: How long should snapshots stick around. Set to zero to keep forever.
+    Type: Number
+    Default: 30
+    MinValue: 0
+Conditions:
+  SnapshotsExpire: !Not [ !Equals [ !Ref SnapshotRetentionInDays, 0 ] ]
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref DomainName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Function: !GetAtt UnzipArtifactsFunction.Arn
+            Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: '.cfn.jar'
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireSnapshots
+            ExpirationInDays: !If [ SnapshotsExpire, !Ref SnapshotRetentionInDays, 99999 ]
+            Prefix: 'snapshot/*'
+            Status: !If [ SnapshotsExpire, Enabled, Disabled ]
+          - Id: ExpireTemplateSnapshots
+            ExpirationInDays: !If [ SnapshotsExpire, !Ref SnapshotRetentionInDays, 99999 ]
+            Prefix: 'templates/snapshot/*'
+            Status: !If [ SnapshotsExpire, Enabled, Disabled ]
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Statement:
+        - Action:
+          - 's3:GetObject'
+          Effect: Allow
+          Resource:
+          - !Sub 'arn:aws:s3:::${S3Bucket}/*'
+          Principal:
+            CanonicalUser: !Ref OriginAccessUser
+        - Action:
+          - 's3:GetObject'
+          Effect: Allow
+          Resource:
+          - !Sub 'arn:aws:s3:::${S3Bucket}/templates/*'
+          Principal: '*'
+  BucketPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref UnzipArtifactsFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Join [ ":", [ arn, aws, s3, "", "", !Ref DomainName ]]
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases:
+        - !Ref DomainName
+        Comment: !Ref DomainName
+        Origins:
+        - DomainName: !GetAtt S3Bucket.DomainName
+          Id: s3origin
+          S3OriginConfig:
+            OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OriginAccessIdentity}'
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - GET
+          - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          TargetOriginId: s3origin
+          ViewerProtocolPolicy: 'redirect-to-https'
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: 'PriceClass_All'
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          SslSupportMethod: 'sni-only'
+          MinimumProtocolVersion: TLSv1
+        DefaultRootObject: index.html
+  Route53Record:
+    Type: 'AWS::Route53::RecordSetGroup'
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+      - Name: !Ref DomainName
+        Type: A
+        AliasTarget:
+          HostedZoneId: Z2FDTNDATAQYW2
+          DNSName: !GetAtt CloudFrontDistribution.DomainName
+  S3BucketAccessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: S3BucketAccess
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:ListBucket'
+            Resource:
+              - !Sub 'arn:aws:s3:::${S3Bucket}'
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:DeleteObject'
+            Resource:
+              - !Sub 'arn:aws:s3:::${S3Bucket}/*'
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+  UnzipArtifactsFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: !Sub |
+          var aws = require('aws-sdk');
+          var child_process = require('child_process');
+          var fs = require('fs');
+          var path = require('path');
+          var tmpDir = '/tmp/' + (new Date()).getTime() + (Math.random() * 0x100000000 + 1).toString(36) + '/';
+          fs.mkdirSync(tmpDir);
+
+          exports.handler = function(event, context) {
+              event.Records.forEach(function(record) { publishTemplates(record, context); });
+          }
+
+          function publishTemplates(event, context) {
+              let key = event.s3.object.key;
+              let file = path.basename(key);
+              let jarFile = fs.createWriteStream(tmpDir + file);
+              let s3 = new aws.S3({ params: { Bucket: event.s3.bucket.name } });
+
+              s3.getObject({ Key: key }).
+                  on('httpData', function(chunk) { jarFile.write(chunk); }).
+                  on('httpDone', function() {
+                      jarFile.end();
+                      child_process.spawn('unzip', [ '-o', tmpDir + file, '-d', tmpDir + 'unzip' ], { stdio: 'inherit' }).on('close', function(code) {
+                          if(code !== 0) { return context.done(new Error("Process exited with status code " + code)); }
+                          var putBatch = function putBatch(files) {
+                              return Promise.all(files.map(function(f) {
+                                  var params = { Key: 'templates/' + path.dirname(key) + f.key, Body: f.stream };
+                                  return s3.putObject(params).promise();
+                              }));
+                          }
+                          var getFilesFromDir = function getFilesFromDir(dir) {
+                              var filesToReturn = [];
+                              function walkDir(currentPath) {
+                                  fs.readdirSync(currentPath).forEach(function(file) {
+                                      var curFile = path.join(currentPath, file);
+                                      if (fs.statSync(curFile).isFile() && currentPath.indexOf('META-INF') < 0) { filesToReturn.push({ key: curFile.replace(dir, ''), stream: fs.createReadStream(curFile)}); }
+                                      else if (fs.statSync(curFile).isDirectory()) { walkDir(curFile); }
+                                  });
+                              }
+                              walkDir(dir);
+                              return filesToReturn;
+                          }
+                          putBatch(getFilesFromDir(tmpDir + 'unzip')).then(function() { context.done(null); }).catch(console.error.bind(console));
+                      });
+                  }).send();
+          }
+      Runtime: nodejs6.10
+  UnzipArtifactsFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn: UnzipArtifactsFunction
+    Properties:
+      LogGroupName: !Join ['', ['/aws/lambda/', !Ref UnzipArtifactsFunction ]]
+      RetentionInDays: 7
+Outputs:
+  URL:
+    Description: 'URL to repo'
+    Value: !Sub 'https://${DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-URL'
+  CfnStacksId:
+    Description: cfn-stacks.com artifact id
+    Value: @artifactId@
+  CfnStacksVersion:
+    Description: cfn-stacks.com artifact version
+    Value: v@version@

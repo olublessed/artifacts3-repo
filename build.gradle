@@ -1,0 +1,44 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+plugins {
+    id 'jp.classmethod.aws.cloudformation' version '0.35'
+}
+
+group = 'com.cfnstacks'
+description = 'Artifact storage on S3'
+version = '0.0.1-SNAPSHOT'
+
+defaultProperty('stackname', 'artifacts3-repo')
+def defaultProperty(String name, defaultValue) {
+    if(!hasProperty(name)) { ext."$name" = defaultValue }
+}
+
+task build(type: Sync) {
+    from 'src/main/cloudformation'
+    into 'build/cloudformation'
+    filter(ReplaceTokens, tokens: [artifactId: project.name, version: project.version])
+}
+
+task clean(type: Delete) {
+    delete 'build'
+}
+
+aws {
+    profileName = aws_profile_name
+    region = aws_region
+}
+
+cloudFormation {
+    templateFile = project.file('build/cloudformation/artifacts3-repo.yaml')
+    stackName = stackname
+}
+
+// Take action and return immediately
+task updateStack(dependsOn: [build, awsCfnMigrateStack]) {}
+task createStack(dependsOn: [updateStack]) {}
+task deleteStack(dependsOn: [awsCfnDeleteStack]) {}
+
+// Take action and wait until completion before returning
+task updateStackWait(dependsOn: [build, awsCfnMigrateStackAndWaitCompleted]) {}
+task createStackWait(dependsOn: [updateStack]) {}
+task deleteStackWait(dependsOn: [awsCfnDeleteStackAndWaitCompleted]) {}
