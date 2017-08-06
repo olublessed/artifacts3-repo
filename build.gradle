@@ -1,17 +1,23 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
+buildscript {
+    repositories { maven { url "https://plugins.gradle.org/m2/" } }
+}
+
 plugins {
+    id 'net.researchgate.release' version '2.6.0'
     id 'jp.classmethod.aws.cloudformation' version '0.35'
 }
 
 group = 'com.cfnstacks'
 description = 'Artifact storage on S3'
-version = '0.0.1-SNAPSHOT'
 
 defaultProperty('stackname', 'artifacts3-repo')
 def defaultProperty(String name, defaultValue) {
     if(!hasProperty(name)) { ext."$name" = defaultValue }
 }
+
+release { tagTemplate = 'v${version}' }
 
 task build(type: Sync) {
     from 'src/main/cloudformation'
