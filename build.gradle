@@ -37,6 +37,23 @@ aws {
 cloudFormation {
     templateFile = project.file('build/cloudformation/artifacts3-repo.yaml')
     stackName = stackname
+    capabilityIam true
+    conventionMapping.stackParams = {
+        def stackParams
+        def stack = cloudFormation.getStack()
+        if (stack.isPresent()) {
+            // existing parameter values
+            stackParams = cloudFormation.toMap(stack.get().parameters)
+        } else {
+            assert project.uploadBundle.didWork
+            // default values
+            stackParams = [
+                    KeyName: "sample-key",
+                    EnvironmentType: "local"
+            ]
+        }
+        return stackParams
+    }
 }
 
 // Take action and return immediately
