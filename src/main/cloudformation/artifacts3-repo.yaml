@@ -38,7 +38,8 @@ Resources:
               S3Key:
                 Rules:
                   - Name: suffix
-                    Value: '.cfn.jar'
+                    Value: '.jar'
+                    #Value: '.cfn.jar'
       LifecycleConfiguration:
         Rules:
           - Id: ExpireSnapshots
@@ -162,8 +163,6 @@ Resources:
           var child_process = require('child_process');
           var fs = require('fs');
           var path = require('path');
-          var tmpDir = '/tmp/' + (new Date()).getTime() + (Math.random() * 0x100000000 + 1).toString(36) + '/';
-          fs.mkdirSync(tmpDir);
 
           exports.handler = function(event, context) {
               event.Records.forEach(function(record) { publishTemplates(record, context); });
@@ -172,6 +171,8 @@ Resources:
           function publishTemplates(event, context) {
               let key = event.s3.object.key;
               let file = path.basename(key);
+              var tmpDir = '/tmp/' + (new Date()).getTime() + (Math.random() * 0x100000000 + 1).toString(36) + '/';
+              fs.mkdirSync(tmpDir);
               let jarFile = fs.createWriteStream(tmpDir + file);
               let s3 = new aws.S3({ params: { Bucket: event.s3.bucket.name } });
 
@@ -181,18 +182,21 @@ Resources:
                       jarFile.end();
                       child_process.spawn('unzip', [ '-o', tmpDir + file, '-d', tmpDir + 'unzip' ], { stdio: 'inherit' }).on('close', function(code) {
                           if(code !== 0) { return context.done(new Error("Process exited with status code " + code)); }
-                          var putBatch = function putBatch(files) {
+                          function putBatch(files) {
                               return Promise.all(files.map(function(f) {
                                   var params = { Key: 'templates/' + path.dirname(key) + f.key, Body: f.stream };
                                   return s3.putObject(params).promise();
                               }));
                           }
-                          var getFilesFromDir = function getFilesFromDir(dir) {
+                          function getFilesFromDir(dir) {
                               var filesToReturn = [];
                               function walkDir(currentPath) {
                                   fs.readdirSync(currentPath).forEach(function(file) {
                                       var curFile = path.join(currentPath, file);
-                                      if (fs.statSync(curFile).isFile() && currentPath.indexOf('META-INF') < 0) { filesToReturn.push({ key: curFile.replace(dir, ''), stream: fs.createReadStream(curFile)}); }
+                                      if (fs.statSync(curFile).isFile() && currentPath.indexOf('META-INF') < 0) {
+                                        console.log('adding file: ' + curFile);
+                                        filesToReturn.push({ key: curFile.replace(dir, ''), stream: fs.createReadStream(curFile)});
+                                      }
                                       else if (fs.statSync(curFile).isDirectory()) { walkDir(curFile); }
                                   });
                               }
