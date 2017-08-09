@@ -14,8 +14,9 @@ plugins {
     id 'org.ajoberstar.grgit' version '2.0.0'
 }
 apply from: 'deploy.groovy'
+
 group = 'com.cfnstacks'
-description = 'Artifact storage on S3'
+description = 'Artifact Storage on S3'
 
 defaultProperty('stackname', 'artifacts3-repo')
 def defaultProperty(String name, defaultValue) {
@@ -57,7 +58,6 @@ aws {
     region = aws.region
 }
 cloudFormation.stackName = (hasProperty('stackName')) ? stackName : cloudFormation.stackName
-def profile = (hasProperty('profileName')) ? profileName : aws.profileName
 
 task docs(dependsOn: [asciidoctor]) {}
 
