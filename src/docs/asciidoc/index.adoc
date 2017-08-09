@@ -19,10 +19,8 @@ Publishing to an ArtifactS3 repository.
 * http://www.oracle.com/technetwork/pt/java/javase/downloads/index.html[Java 8 JDK^]: Download from Oracle or
     use a packaged version for your OS
 
-=== Documentation Links
-////
-PDF Generation gives an error if you try to use icons
-////
+== Documentation Links
+
 ifdef::backend-html5[]
 === icon:file-pdf-o[] pass:[<a href="./index.pdf" target="_blank">PDF Version</a>]
 === icon:file-code-o[] https://github.com/cfn-stacks/artifacts3-repo[Source^]
@@ -31,6 +29,6 @@ ifdef::backend-pdf[]
 === https://github.com/cfn-stacks/artifacts3-repo[Source^]
 endif::backend-pdf[]
 
-=== Version
+== Version
 
 This documentation was generated for version {projectVersion} from commit https://github.com/cfn-stacks/artifacts3-repo/commit/{gitHash}[{gitHashShort}^].
