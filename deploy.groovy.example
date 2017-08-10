@@ -10,8 +10,8 @@ cloudFormation {
     conventionMapping.stackParams = {
         return stackParams = [
             DomainName: 'cfn-stacks.com',
-            AcmCertificateArn: '',
             HostedZoneId: '',
+            AcmCertificateArn: '',
             OriginAccessIdentity: '',
             OriginAccessUser: ''
         ]
