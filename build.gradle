@@ -52,6 +52,7 @@ task copyAndFilter(type: Sync) {
     into 'build/cloudformation'
     filter(ReplaceTokens, tokens: [artifactId: project.name, version: project.version])
 }
+build.dependsOn copyAndFilter
 
 aws {
     profileName = aws.profileName
