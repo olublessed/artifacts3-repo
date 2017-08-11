@@ -6,6 +6,11 @@ pip install --user awscli; export PATH=$PATH:$HOME/.local/bin
 
 PROJECT_VERSION=$(./gradlew projectVersion)
 
+publish_site() {
+    aws s3 sync build/asciidoc/html5/ "s3://cfn-stacks.com/docs/artifacts3-repo/${1}"
+    aws s3 cp build/asciidoc/pdf/index.pdf "s3://cfn-stacks.com/docs/artifacts3-repo/${1}/artifacts3-repo.pdf"
+}
+
 # Publish the site for the current version (always)
 publish_site $PROJECT_VERSION
 
@@ -13,8 +18,3 @@ publish_site $PROJECT_VERSION
 if [[ $PROJECT_VERSION != *"SNAPSHOT"* ]]; then
     publish_site "latest"
 fi
-
-publish_site() {
-    aws s3 sync build/asciidoc/html5/ "s3://cfn-stacks.com/docs/artifacts3-repo/${1}"
-    aws s3 cp build/asciidoc/pdf/index.pdf "s3://cfn-stacks.com/docs/artifacts3-repo/${1}/artifacts3-repo.pdf"
-}
