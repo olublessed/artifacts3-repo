@@ -61,6 +61,7 @@ aws {
 cloudFormation.stackName = (hasProperty('stackName')) ? stackName : cloudFormation.stackName
 
 task docs(dependsOn: [asciidoctor]) {}
+task projectVersion() { doLast { println project.version } }
 
 // Take action and return immediately
 task updateStack(dependsOn: [copyAndFilter, awsCfnMigrateStack]) {}; updateStack.mustRunAfter copyAndFilter
