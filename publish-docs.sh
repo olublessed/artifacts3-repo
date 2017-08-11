@@ -4,7 +4,7 @@ set -ex
 
 pip install --user awscli; export PATH=$PATH:$HOME/.local/bin
 
-PROJECT_VERSION=$(./gradlew projectVersion)
+PROJECT_VERSION=$(./gradlew --no-daemon --no-build-cache --quiet projectVersion)
 
 publish_site() {
     aws s3 sync build/asciidoc/html5/ "s3://cfn-stacks.com/docs/artifacts3-repo/${1}"

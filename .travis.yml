@@ -2,7 +2,7 @@ language: java
 install:
   - touch deploy.groovy
 script:
-  - ./gradlew docs
+  - ./gradlew --no-daemon --no-build-cache docs
 after_success:
   - ./publish-docs.sh
 branches:
