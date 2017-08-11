@@ -2,17 +2,9 @@ language: java
 install:
   - touch deploy.groovy
 script:
-  - ./gradlew --no-daemon --no-build-cache docs
+  - ./gradlew docs
 after_success:
   - ./publish-docs.sh
 branches:
   only:
   - master
-before_cache:
-  - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
-  - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
-cache:
-  directories:
-    - $HOME/.gradle/caches/
-    - $HOME/.gradle/wrapper/
-    - $HOME/.cache/pip
