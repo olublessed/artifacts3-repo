@@ -1,5 +1,6 @@
 language: java
-install: echo "skip 'gradle assemble' step"
+install:
+  - touch deploy.groovy
 script:
   - ./gradlew docs
 after_success:
@@ -7,3 +8,11 @@ after_success:
 branches:
   only:
   - master
+before_cache:
+  - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
+  - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
+cache:
+  directories:
+    - $HOME/.gradle/caches/
+    - $HOME/.gradle/wrapper/
+    - $HOME/.cache/pip
