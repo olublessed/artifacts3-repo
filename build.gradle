@@ -1,74 +1,78 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-
-buildscript {
-    repositories { maven { url "https://plugins.gradle.org/m2/" } }
-    dependencies {
-        classpath 'org.asciidoctor:asciidoctorj-pdf:1.5.0-alpha.15'
-    }
-}
-
 plugins {
-    id 'net.researchgate.release' version '2.6.0'
-    id 'jp.classmethod.aws.cloudformation' version '0.35'
-    id 'org.asciidoctor.convert' version '1.5.3'
+    id 'com.cfnstacks.gradle.artifacts3' version '0.1.5'
     id 'org.ajoberstar.grgit' version '2.0.0'
 }
-apply from: 'deploy.groovy'
 
 group = 'com.cfnstacks'
 description = 'Artifact Storage on S3'
 
-defaultProperty('stackname', 'artifacts3-repo')
-def defaultProperty(String name, defaultValue) {
-    if(!hasProperty(name)) { ext."$name" = defaultValue }
+ext.params = [:]
+if(project.file('local-config.groovy').exists()) { apply from: 'local-config.groovy' }
+def setParam(name, defaultValue) { (hasProperty(name)) ? property(name) : (params.hasProperty(name)) ? params[name] :defaultValue }
+
+ext.params.with {
+    failure = setParam('failure', 'ROLLBACK') // DO_NOTHING | ROLLBACK | DELETE
+    group = setParam('group', 'com.cfnstacks')
+    stackParamSet = setParam('stackParamSet', 'deploy')
+    profile = setParam('profile', '')
+    region = setParam('region', 'us-east-2')
+    repo = setParam('repo', 'cfn-stacks.com.s3.us-east-2.amazonaws.com')
+    stack = setParam('stack', 'artifacts3-repo')
+    template = setParam('template', 'artifacts3-repo.yaml')
+    // Template specific params below
+    DomainName = setParam('DomainName', '')
+    HostedZoneId = setParam('HostedZoneId', '')
+    AcmCertificateArn = setParam('AcmCertificateArn', '')
+    CloudFrontDefaultTTL = setParam('CloudFrontDefaultTTL', 86400) // One day is the default
+    OriginAccessIdentity = setParam('OriginAccessIdentity', '')
+    OriginAccessUser = setParam('OriginAccessUser', '')
 }
+
+ext.stackParameters = [
+    deploy: [
+        DomainName: params.DomainName,
+        HostedZoneId: params.HostedZoneId,
+        AcmCertificateArn: params.AcmCertificateArn,
+        CloudFrontDefaultTTL: params.CloudFrontDefaultTTL,
+        OriginAccessIdentity: params.OriginAccessIdentity,
+        OriginAccessUser: params.OriginAccessUser
+    ]
+]
+
+artifacts3 {
+    group = params.group
+    profileName = params.profile
+    repo = params.repo
+}
+
+aws {
+    profileName = params.profile
+    region = params.region
+}
+
+cloudFormation {
+    templateFile = project.file("build/cloudformation/${params.template}")
+    stackName = params.stack
+    capabilityIam true
+    onFailure params.failure
+    conventionMapping.stackParams = { project.ext.stackParameters[project.ext.params.stackParamSet] }
+}
+
 asciidoctor {
     backends 'html5', 'pdf'
     attributes \
         'build-gradle': file('build.gradle'),
-            'stylesheet': 'stylesheets/style.css',
-            'endpoint-url': 'https://cfn-stacks.com',
-            'source-highlighter': 'coderay',
-            'imagesdir': 'images',
-            'toc': 'left',
-            'icons': 'font',
-            'setanchors': '',
-            'idprefix': '',
-            'idseparator': '-',
-            'docinfo1': '',
-            'projectVersion': project.version,
-            'gitHash': grgit.head().id,
-            'gitHashShort': grgit.head().abbreviatedId
+        'stylesheet': 'stylesheets/style.css',
+        'endpoint-url': 'https://cfn-stacks.com',
+        'source-highlighter': 'coderay',
+        'imagesdir': 'images',
+        'toc': 'left',
+        'icons': 'font',
+        'setanchors': '',
+        'idprefix': '',
+        'idseparator': '-',
+        'docinfo1': '',
+        'projectVersion': project.version,
+        'gitHash': grgit.head().id,
+        'gitHashShort': grgit.head().abbreviatedId
 }
-
-asciidoctorj {
-    version = '1.5.5'
-}
-
-release { tagTemplate = 'v${version}' }
-
-task copyAndFilter(type: Sync) {
-    from 'src/main/cloudformation'
-    into 'build/cloudformation'
-    filter(ReplaceTokens, tokens: [artifactId: project.name, version: project.version])
-}
-build.dependsOn copyAndFilter
-
-aws {
-    profileName = aws.profileName
-    region = aws.region
-}
-cloudFormation.stackName = (hasProperty('stackName')) ? stackName : cloudFormation.stackName
-
-task docs(dependsOn: [asciidoctor]) {}
-task projectVersion() { doLast { println project.version } }
-
-// Take action and return immediately
-task updateStack(dependsOn: [copyAndFilter, awsCfnMigrateStack]) {}; updateStack.mustRunAfter copyAndFilter
-task createStack(dependsOn: [updateStack]) {}
-task deleteStack(dependsOn: [awsCfnDeleteStack]) {}
-
-// Take action and wait until completion before returning
-task updateStackWait(dependsOn: [copyAndFilter, awsCfnMigrateStackAndWaitCompleted]) {}; updateStackWait.mustRunAfter copyAndFilter
-task createStackWait(dependsOn: [updateStack]) {}
-task deleteStackWait(dependsOn: [awsCfnDeleteStackAndWaitCompleted]) {}

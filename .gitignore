@@ -1,3 +1,5 @@
 .gradle/
 build/
-deploy.groovy
+.idea/
+*.iml
+local-config.groovy

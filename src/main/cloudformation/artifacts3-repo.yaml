@@ -1,30 +1,49 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'artifacts3 repo - https://cfn-stacks.com'
+Description: 'ArtifactS3 Repo - https://cfn-stacks.com'
+
 Parameters:
+
   DomainName:
     Description: Repo DNS name
     Type: String
-  AcmCertificateArn:
-    Description: ACM Certificate ARN
-    Type: String
-  HostedZoneId:
-    Description: The Id of the Route 53 hosted zone
-    Type: String
-  OriginAccessIdentity:
-    Description: Create an Origin Access Identity in the CloudFront console and copy the ID. Looks like E1PG2M8DTIRADI
-    Type: String
-  OriginAccessUser:
-    Description: The Amazon S3 Canonical User ID (really long string)
-    Type: String
+
   SnapshotRetentionInDays:
     Description: How long should snapshots stick around. Set to zero to keep forever.
     Type: Number
     Default: 30
     MinValue: 0
+
+  AcmCertificateArn:
+    Description: ACM Certificate ARN
+    Type: String
+    Default: ''
+
+  HostedZoneId:
+    Description: The Id of the Route 53 hosted zone
+    Type: String
+    Default: ''
+
+  CloudFrontDefaultTTL:
+    Description: Seconds that objects stay in CF cache before CF forwards another request origin to check for updates
+    Type: Number
+    Default: 86400 # One Day
+
+  OriginAccessIdentity:
+    Description: Create an Origin Access Identity in the CloudFront console and copy the ID. Looks like E1PG2M8DTIRADI
+    Type: String
+    Default: ''
+
+  OriginAccessUser:
+    Description: The Amazon S3 Canonical User ID (really long string)
+    Type: String
+    Default: ''
+
 Conditions:
+
   SnapshotsExpire: !Not [ !Equals [ !Ref SnapshotRetentionInDays, 0 ] ]
+
 Resources:
+
   S3Bucket:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
@@ -50,6 +69,7 @@ Resources:
             ExpirationInDays: !If [ SnapshotsExpire, !Ref SnapshotRetentionInDays, 99999 ]
             Prefix: 'templates/snapshot/*'
             Status: !If [ SnapshotsExpire, Enabled, Disabled ]
+
   S3BucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
     Properties:
@@ -69,6 +89,7 @@ Resources:
           Resource:
           - !Sub 'arn:aws:s3:::${S3Bucket}/templates/*'
           Principal: '*'
+
   BucketPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
@@ -93,6 +114,7 @@ Resources:
           AllowedMethods:
           - GET
           - HEAD
+          DefaultTTL: !Ref CloudFrontDefaultTTL
           ForwardedValues:
             QueryString: false
             Cookies:
@@ -107,6 +129,7 @@ Resources:
           SslSupportMethod: 'sni-only'
           MinimumProtocolVersion: TLSv1
         DefaultRootObject: index.html
+
   Route53Record:
     Type: 'AWS::Route53::RecordSetGroup'
     Properties:
@@ -117,6 +140,7 @@ Resources:
         AliasTarget:
           HostedZoneId: Z2FDTNDATAQYW2
           DNSName: !GetAtt CloudFrontDistribution.DomainName
+
   S3BucketAccessPolicy:
     Type: 'AWS::IAM::Policy'
     Properties:
@@ -138,6 +162,7 @@ Resources:
               - 's3:DeleteObject'
             Resource:
               - !Sub 'arn:aws:s3:::${S3Bucket}/*'
+
   LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -152,6 +177,7 @@ Resources:
           - sts:AssumeRole
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
   UnzipArtifactsFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -208,21 +234,26 @@ Resources:
                   }).send();
           }
       Runtime: nodejs6.10
+
   UnzipArtifactsFunctionLogGroup:
     Type: 'AWS::Logs::LogGroup'
     DependsOn: UnzipArtifactsFunction
     Properties:
       LogGroupName: !Join ['', ['/aws/lambda/', !Ref UnzipArtifactsFunction ]]
       RetentionInDays: 7
+
 Outputs:
+
   URL:
     Description: 'URL to repo'
     Value: !Sub 'https://${DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-URL'
+
   CfnStacksId:
     Description: cfn-stacks.com artifact id
     Value: @artifactId@
+
   CfnStacksVersion:
     Description: cfn-stacks.com artifact version
     Value: v@version@
