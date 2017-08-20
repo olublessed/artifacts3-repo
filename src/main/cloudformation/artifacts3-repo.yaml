@@ -4,7 +4,7 @@ Description: 'ArtifactS3 Repo - https://cfn-stacks.com'
 Parameters:
 
   DomainName:
-    Description: Repo DNS name
+    Description: Repo name
     Type: String
 
   SnapshotRetentionInDays:
@@ -40,7 +40,9 @@ Parameters:
 
 Conditions:
 
-  SnapshotsExpire: !Not [ !Equals [ !Ref SnapshotRetentionInDays, 0 ] ]
+  SnapshotsExpire: !Not [ !Equals [ 0, !Ref SnapshotRetentionInDays ] ]
+
+  UseCloudFront: !Not [ !Equals [ '', !Ref OriginAccessIdentity ] ]
 
 Resources:
 
@@ -70,8 +72,9 @@ Resources:
             Prefix: 'templates/snapshot/*'
             Status: !If [ SnapshotsExpire, Enabled, Disabled ]
 
-  S3BucketPolicy:
+  S3BucketPolicyAllowingCloudFrontUser:
     Type: 'AWS::S3::BucketPolicy'
+    Condition: UseCloudFront
     Properties:
       Bucket: !Ref S3Bucket
       PolicyDocument:
@@ -98,8 +101,10 @@ Resources:
       Principal: s3.amazonaws.com
       SourceAccount: !Ref 'AWS::AccountId'
       SourceArn: !Join [ ":", [ arn, aws, s3, "", "", !Ref DomainName ]]
+
   CloudFrontDistribution:
     Type: 'AWS::CloudFront::Distribution'
+    Condition: UseCloudFront
     Properties:
       DistributionConfig:
         Aliases:
@@ -133,6 +138,7 @@ Resources:
 
   Route53Record:
     Type: 'AWS::Route53::RecordSetGroup'
+    Condition: UseCloudFront
     Properties:
       HostedZoneId: !Ref HostedZoneId
       RecordSets:
@@ -246,6 +252,7 @@ Resources:
 Outputs:
 
   URL:
+    Condition: UseCloudFront
     Description: 'URL to repo'
     Value: !Sub 'https://${DomainName}'
     Export:
