@@ -115,6 +115,7 @@ Resources:
           - GET
           - HEAD
           DefaultTTL: !Ref CloudFrontDefaultTTL
+          MaxTTL: !Ref CloudFrontDefaultTTL
           ForwardedValues:
             QueryString: false
             Cookies:
