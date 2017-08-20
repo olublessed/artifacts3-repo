@@ -124,8 +124,9 @@ the project shouldn't need to be updated.
 
 == Tool Links
 
-* https://aws.amazon.com/cloudformation/[CloudFormation Content Delivery Network^]
-* https://gradle.org/[Gradle Build Tool^]
+* https://aws.amazon.com/cloudformation/[CloudFormation^]
+* https://git-scm.com/[Git^]
+* https://gradle.org/[Gradle^]
 
 == Documentation Links
 
