@@ -56,19 +56,44 @@ image::architecture.png[scaledwidth="100%",alt="Architecture Diagram",link=image
 
 === Deployment
 
-There are several prerequisite steps that have to be accomplished manually before CloudFormation can automatically
-deploy and then later update a stack. All of the steps below are one-time tasks that once created and configured within
-the project shouldn't need to be updated.
+There are possibly several prerequisite steps that have to be accomplished manually before CloudFormation can automatically
+deploy and then later update a stack.
 
 . http://docs.aws.amazon.com/cli/latest/userguide/installing.html[Install the AWS CLI^] and configure a
     http://docs.aws.amazon.com/cli/latest/userguide/cli-multiple-profiles.html[named profile^]
-. We'll go over all the options later in the docs but at a minimum a private repo can be created using just a
-    single command with a few parameters `./gradlew -Pprofile=YOUR_PROFILE_NAME -Pstack=STACK_NAME -PDomainName=UNIQUE_S3_BUCKET_NAME`
+. We'll go over all the options later in the docs but at a minimum a private repo can be created in the us-east-2 region
+    using just a single command with a few parameters. The build.gradle file has a list of default options that can be
+    overridden. An example of the region could have be overridden with an additional argument of -Pregion=us-west-1
+[source,bash]
+./gradlew updateStack -Pprofile=YOUR_PROFILE_NAME -Pstack=STACK_NAME -PDomainName=UNIQUE_S3_BUCKET_NAME
+. Once the stack has finished deploying note the name of the bucket that was created as that will be referenced
+    in future publishing commands as your repo. By default the bucket is private and likely you are the only person
+    who can access the published materials. CloudFormation runs with the permission of the user executing the commands
+    so if others need access to the published artifacts use standard S3 permissions to authorize users, groups or
+    instance roles.
+
+The default deployment creates the all of the needed components for an artifact repo. The additional parameters offer
+the ability to deploy a website fronted by CloudFormation but requires a number of additional steps to create an SSL
+certificate and CloudFront user prior to deployment.
 
 === Updates
 
 . Updates to the stack are accomplished by running the `./gradlew updateStack` commmand again and changing either a command
     line parameter or one of the config files.
+
+=== Configuration
+
+Command line arguments can always be used and will override other settings but if the same parameters are used for the
+majority of deployments they can be specified in a file named local-config.groovy. If present in the root directory of
+the settings will get picked up and only if you want to override them do you need to use param arguments on the command
+line. The file is listed in .gitignore so you won't accidentally commit it and push it to a public repo.
+
+[source,groovy]
+project.params.with {
+    profile = 'my-aws-cli-profile-name'
+    stack = 'artifacts3-repo-test'
+    DomainName = 'repo-test-38e894739r879'
+}
 
 == Tool Links
 
