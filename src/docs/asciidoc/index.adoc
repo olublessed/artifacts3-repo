@@ -1,12 +1,5 @@
 = ArtifactS3 Repository
 v{projectVersion}
-ifdef::backend-pdf[]
-:title-logo-image: image:logo.png[500, 500, align="center"]
-endif::backend-pdf[]
-
-ifdef::backend-html5[]
-image:logo.png[Logo, 150, 150, float="left"] +
-endif::backend-html5[]
 
 == Purpose
 
@@ -41,7 +34,7 @@ image::architecture.png[scaledwidth="100%",alt="Architecture Diagram",link=image
 
 . *Publish templates via GitHub push:* Developers -> GitHub -> Travis CI -> Gradle plugin in project -> ArtifactS3 Repo
     in S3. Template projects would include a .travis.yml file that would call the publish task.
-    * Example: `git commit -m'Updated template'; git push`
+    * Example: `git commit -m"Updated template"; git push`
 . *Publish templates directly:* Developers -> Gradle plugin in project -> ArtifactS3 Repo in S3
     * Example: `./gradlew publish`
 . *ArtifactS3 repo process:* New artifact -> Unzipped by Lambda function -> Artifact is now available as a Maven
@@ -49,6 +42,7 @@ image::architecture.png[scaledwidth="100%",alt="Architecture Diagram",link=image
     * Example `./gradlew createStack` using a template that includes another published
         template as a
         http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-stack.html[Nested Stack].
+
 == Build/Deploy
 
 === Prerequisite
@@ -66,61 +60,15 @@ There are several prerequisite steps that have to be accomplished manually befor
 deploy and then later update a stack. All of the steps below are one-time tasks that once created and configured within
 the project shouldn't need to be updated.
 
-. Copy and rename the `deploy.groovy.example` file to `deploy.groovy`. This file is already ignored by git so you won't
-    be checking in your config settings
 . http://docs.aws.amazon.com/cli/latest/userguide/installing.html[Install the AWS CLI^] and configure a
     http://docs.aws.amazon.com/cli/latest/userguide/cli-multiple-profiles.html[named profile^]
-. Update the aws.profileName section of the deploy.groovy file with your aws profile name. You can also set this
-    property from the command line with `./gradlew updateStack -PprofileName=new-profile`
-. Update the aws.region property with the
-    http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions[region^]
-    in which you'll deploy your ArtifactS3 repo.
-[source,groovy]
-    aws {
-        profileName = 'YOUR_PROFILE_NAME'
-        region = 'us-east-2'
-    }
-
-. Update the cloudFormation.stackName property. You can also set this property from the command line with
-    `./gradlew updateStack -PstackName=new-name`
-. Register a domain with Route53 and copy the domain name and the Hosted Zone ID into the CloudFormation parameters
-    section of the config file. There are costs for registering, renewing and an ongoing monthly fee
-    https://aws.amazon.com/route53/pricing/[available from the pricing page]. This is currently works out to around
-    $1.50 per month for a .com address in 2017.
-. In the AWS Certificate Manageer console
-    http://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request.html[generate a new or import an existing certificate]
-    and copy the Amazon Resource Name or ARN into the CloudFormation.AcmCertificateArn field within the config file. ACM
-    certificates are issued for free but can only be applied to AWS resources.
-. In the CloudFront console
-    http://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html#private-content-creating-oai-console[craete an Origin Acccess Identity]
-    and copy the Origin Access ID and Amazon S3 Canonical User ID into the OriginAccessIdentity and OriginAccessUser properties
-
-[source,groovy]
-    // override example: ./gradlew updateStack -PprofileName=new-profile -PstackName=new-name
-    cloudFormation {
-        templateFile = project.file('build/cloudformation/artifacts3-repo.yaml')
-        stackName = 'artifacts3-repo'
-        capabilityIam true
-        conventionMapping.stackParams = {
-            return stackParams = [
-                // From Route53 Console
-                DomainName: 'cfn-stacks.com',
-                HostedZoneId: 'Z2RX2TUH85WFJI',
-                // From Certificate Manager Console
-                AcmCertificateArn: 'arn:aws:acm:us-east-2:111159333795:certificate/d51dc123-07a3-42r4-b526-172cbbe14123',
-                // From the CloudFront Console
-                OriginAccessIdentity: 'E1PG2MQ2NYYYYY',
-                OriginAccessUser: 'f595846d829cd7f77554f33184148427bc37cc89ed81477a2e036132cb61a1dd61cf556d958e6660e123123123123123'
-            ]
-        }
-    }
-
-. Once the pre-deployment configuration steps have been completed the stack can be launched with the command
-    `./gradlew createStack`
+. We'll go over all the options later in the docs but at a minimum a private repo can be created using just a
+    single command with a few parameters `./gradlew -Pprofile=YOUR_PROFILE_NAME -Pstack=STACK_NAME -PDomainName=UNIQUE_S3_BUCKET_NAME`
 
 === Updates
 
-. Updates to the stack are accomplished with the command `./gradlew updateStack`
+. Updates to the stack are accomplished by running the `./gradlew updateStack` commmand again and changing either a command
+    line parameter or one of the config files.
 
 == Tool Links
 
@@ -131,12 +79,12 @@ the project shouldn't need to be updated.
 == Documentation Links
 
 ifdef::backend-html5[]
-=== icon:file-code-o[] https://cfn-stacks.com/docs/latest[Web^]
+=== icon:file-code-o[] https://cfn-stacks.com/docs/index.html[Web^]
 === icon:file-pdf-o[] pass:[<a href="./artifacts3-repo.pdf" target="_blank">PDF</a>]
 === icon:git[] https://github.com/cfn-stacks/artifacts3-repo[Source^]
 endif::backend-html5[]
 ifdef::backend-pdf[]
-=== https://cfn-stacks.com/docs/latest[Web^]
+=== https://cfn-stacks.com/docs/index.html[Web^]
 === https://github.com/cfn-stacks/artifacts3-repo[Source^]
 endif::backend-pdf[]
 
