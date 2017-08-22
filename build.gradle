@@ -1,5 +1,5 @@
 plugins {
-    id 'com.cfnstacks.gradle.artifacts3' version '0.1.5'
+    id 'com.cfnstacks.gradle.artifacts3' version '0.1.6'
     id 'org.ajoberstar.grgit' version '2.0.0'
 }
 
